@@ -18,7 +18,7 @@ Note: riseTime should be HH:MM ,such as:
 
 13154	15:03
 
-14032	14:23
+...
 
 ###For Dat
 the data format must be:
@@ -33,10 +33,17 @@ such as:
 
 11112  20160720  141133000  320.654764    0.000000   24.203669    0.000000    1574.689324
 
-11112  20160720  141134000  320.522963    0.000000   24.342232    0.000000    1569.382131
+...
 
 
 The first three columns are needed and others are not neccessary.
 
-More details about this crawling to see the comments in SatForecast.py File.
+##Output File Format
+The output file record the satellite information like this:
+
+Satellite	ID	Time(UTC+00:00)	Altitude(高度)	Azimuth(方位角)	Magnitude(星等)	Distance(km)	Time(UTC+08:00)
+
+Cosmos 1048 Rocket	11112	18:42	23°	78°	5.2	1,613	02:42
+
+####More details about this crawling to see the comments in SatForecast.py File.
 
