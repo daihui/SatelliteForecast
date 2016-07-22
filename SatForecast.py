@@ -13,9 +13,13 @@ baseURL='http://www.heavens-above.com/'
 tolerantSecond=15*60    #卫星升起时间容忍误差
 minMagnitude=5.5        #卫星筛选星等值
 maxSatNum=100           #输入卫星最大颗数
-inputFile='InputFile/visible14-15-0720.Dat'   #输入卫星数据，包括编号id以及升起时间
-outputFile='OutputData/SatelliteResult'+time.strftime('%Y-%m-%d',time.localtime(time.time()))+'.txt'  #输出卫星查询数据
-dataForm='dat'          #输入文件格式
+latitude = '32.3260'  # 观测地纬度
+longitude = '80.0270'  # 观测地经度
+elevation = '5067'  # 观测地海拔，  观测地默认设置阿里观测站(32.3260N,80.0270E,5067)
+inputFile = 'InputFile/2016-7-22-input.txt'  # 输入卫星数据，包括编号id以及升起时间
+outputFile = 'OutputData/SatelliteResult'+time.strftime('%Y-%m-%d',time.localtime(time.time()))+'.txt'  #输出卫星查询数据
+dataForm='txt'  # 输入文件格式
+
 
 #定义卫星类，属性包括ID，名字，标准时间，北京时间，方位角，星等
 class satellite():
@@ -34,66 +38,75 @@ getSatellite=satellite('begin')
 
 #根据ID获得heavens-about数据库关于该卫星的 全部过境 的网页地址
 def satPassSummaryURL(ID):
-    return "http://www.heavens-above.com/PassSummary.aspx?satid="+str(ID)+"&lat=0&lng=0&loc=Unspecified&alt=0&tz=UCT&showall=t"
+    return "http://www.heavens-above.com/PassSummary.aspx?satid=" + str(
+        ID) + "&lat=%s&lng=%s&loc=Ngari&alt=%s&tz=UCT&showall=t" % (latitude, longitude, elevation)
+
 
 #根据输入卫星的升起时间以容忍度找到目标卫星，获得PassDetailsURL
 def satPassDetailsURL(satPassSumURL,passTime,tolerantSecond):
-    satURL=baseURL
+    findFlag=False
+    satURL = baseURL
     detailsURL=''
     Day=passTime.split('-')[2]
     passSummaryRequest=urllib2.Request(satPassSumURL)
-    passSummaryResponse=urllib2.urlopen(passSummaryRequest)
-    passSummary=passSummaryResponse.read()
+    passSummaryResponse=urllib2.urlopen(passSummaryRequest, timeout=60)
+    passSummary = passSummaryResponse.read()
     summarySoup=BeautifulSoup(passSummary)
-    findFlag=False
     for tr in summarySoup.findAll('tr',attrs={'class':'clickableRow'}):
-        i=1
-        for td in tr.findAll('td'):
-            if i==1:
-                day=td.text.encode("utf-8").split(' ')[0]
-                detailsURL=td.find('a').attrs['href']
-                i+=1
-                continue
-            if i==2:
-                i+=1
-                continue
-            if Day==day and i==3:
-                satTime=td.text.encode('utf-8')
-                satDayTime=passTime.split('-')[0]+passTime.split('-')[1]+passTime.split('-')[2]+satTime
-                time1= time.mktime(time.strptime(satDayTime,"%Y%m%d%H:%M:%S"))
-                time2= time.mktime(time.strptime(passTime,"%Y-%m-%d-%H-%M-%S"))
-                detT=abs(int(time1)-int(time2))
-                if detT<tolerantSecond:
-                    satURL=satURL+detailsURL
-                    findFlag=True
-                    break
-                i+=1
-                continue
-    return satURL,findFlag
+        if findFlag is False:
+            tds = tr.findAll('td')
+            satTime = tds[2].text.encode('utf-8')
+            satDayTime = passTime.split('-')[0] + passTime.split('-')[1] + passTime.split('-')[2] + satTime
+            time1 = time.mktime(time.strptime(satDayTime, "%Y%m%d%H:%M:%S"))
+            time2 = time.mktime(time.strptime(passTime, "%Y-%m-%d-%H-%M-%S"))
+            detT = abs(int(time1) - int(time2))
+            # print detT
+            day = tds[0].text.encode("utf-8").split(' ')[0]
+            detailsURL = tds[0].find('a').attrs['href']
+            if Day == day and detT < tolerantSecond:
+                satURL = satURL + detailsURL
+                findFlag = True
+                break
+    return satURL, findFlag
 
 #根据找到的卫星爬取卫星数据，存入satellite实例
 def satDataCollect(id,satURL,isFind,minMagnitude):
     isOK=False
     if isFind:
-        passDetailsRequest=urllib2.Request(satURL)
-        #print satURL
-        passDetailsResponse=urllib2.urlopen(passDetailsRequest)
-        passDetails=passDetailsResponse.read()
-        detailsSoup=BeautifulSoup(passDetails)
-        head=detailsSoup.find('head')
-        name=head.find('title').text.encode('utf-8').split('-')[0].strip()
-        table=detailsSoup.find('table',attrs={'standardTable'})
-        trs=table.findAll('tr')
-        tr=trs[3]
-        tds=tr.findAll('td')
-        if tds[5].text.encode('utf-8').strip()!='-':
-            if float(tds[5].text.encode('utf-8'))<=minMagnitude:
-                getSatellite.altitude=tds[2].text.encode('utf-8').split(' ')[0].strip()
-                getSatellite.magnitude=float(tds[5].text.encode('utf-8'))
-                getSatellite.azimuth=tds[3].text.encode('utf-8').split(' ')[0].strip()
-                getSatellite.distance=tds[4].text.encode('utf-8')
-                getSatellite.satName=name
-                isOK=True
+        try:
+            # print satURL
+            passDetailsRequest = urllib2.Request(satURL)
+            passDetailsResponse = urllib2.urlopen(passDetailsRequest, timeout=60)
+            passDetails = passDetailsResponse.read()
+            detailsSoup = BeautifulSoup(passDetails)
+            head = detailsSoup.find('head')
+            name = head.find('title').text.encode('utf-8').split('-')[0].strip()
+            table = detailsSoup.find('table', attrs={'standardTable'})
+            trs = table.findAll('tr')
+            tr = trs[3]
+            tds = tr.findAll('td')
+            if tds[0].text.encode('utf-8').strip() != 'Maximum altitude':
+                tr = trs[4]
+                tds = tr.findAll('td')
+            if tds[5].text.encode('utf-8').strip() != '-':
+                print tds[5].text.encode('utf-8').strip()
+                if float(tds[5].text.encode('utf-8').strip()) <= minMagnitude:
+                    getSatellite.altitude = tds[2].text.encode('utf-8').split(' ')[0].strip()
+                    getSatellite.magnitude = float(tds[5].text.encode('utf-8'))
+                    getSatellite.azimuth = tds[3].text.encode('utf-8').split(' ')[0].strip()
+                    getSatellite.distance = tds[4].text.encode('utf-8')
+                    getSatellite.satName = name
+                    isOK = True
+                else:
+                    print 'Magnitude is bigger than %s' % minMagnitude
+            else:
+                print 'Satellite %s Magnitude information is - (not clear!)' % getSatellite.id
+        except Exception, e:
+            print 'Satellite %s internet timeout ! please check this URL below：' % getSatellite.id
+            print satURL
+    else:
+        print 'Can\'t find the Satellite id %s around time %s !, Please check!' % (
+        getSatellite.id, getSatellite.baseTime)
     return getSatellite,isOK
 
 #将符合要求的卫星数据写入文件
@@ -167,6 +180,7 @@ def satSearch(inputFile,outputFile,dataForm):
     outFile.close()
     print'Satellite MaxNum:', satNum
     for i in range(satNum):
+        print str(i+1) + '\'th satellite:'
         if int(satList[i][0])==0:
             continue
         getSatellite.id=str(int(satList[i][0]))
@@ -176,11 +190,11 @@ def satSearch(inputFile,outputFile,dataForm):
         satURL,isFind=satPassDetailsURL(PassSummaryURL,getSatellite.baseTime,tolerantSecond)
         #print satURL,isFind
         Satellite,isOK=satDataCollect(getSatellite.id,satURL,isFind,minMagnitude)
-        print i
         if isOK:
             dataRecord(Satellite,isOK,outputFile)
-            print getSatellite.id + '\t',isOK
+            print 'The satellite: ' + getSatellite.id + '\t' + 'OK ' + str(getSatellite.magnitude)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     satSearch(inputFile,outputFile,dataForm)
     print 'finished!'
