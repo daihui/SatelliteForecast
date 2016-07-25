@@ -48,25 +48,28 @@ def satPassDetailsURL(satPassSumURL,passTime,tolerantSecond):
     satURL = baseURL
     detailsURL=''
     Day=passTime.split('-')[2]
-    passSummaryRequest=urllib2.Request(satPassSumURL)
-    passSummaryResponse=urllib2.urlopen(passSummaryRequest, timeout=60)
-    passSummary = passSummaryResponse.read()
-    summarySoup=BeautifulSoup(passSummary)
-    for tr in summarySoup.findAll('tr',attrs={'class':'clickableRow'}):
-        if findFlag is False:
-            tds = tr.findAll('td')
-            satTime = tds[2].text.encode('utf-8')
-            satDayTime = passTime.split('-')[0] + passTime.split('-')[1] + passTime.split('-')[2] + satTime
-            time1 = time.mktime(time.strptime(satDayTime, "%Y%m%d%H:%M:%S"))
-            time2 = time.mktime(time.strptime(passTime, "%Y-%m-%d-%H-%M-%S"))
-            detT = abs(int(time1) - int(time2))
-            # print detT
-            day = tds[0].text.encode("utf-8").split(' ')[0]
-            detailsURL = tds[0].find('a').attrs['href']
-            if Day == day and detT < tolerantSecond:
-                satURL = satURL + detailsURL
-                findFlag = True
-                break
+    try:
+        passSummaryRequest = urllib2.Request(satPassSumURL)
+        passSummaryResponse = urllib2.urlopen(passSummaryRequest, timeout=60)
+        passSummary = passSummaryResponse.read()
+        summarySoup = BeautifulSoup(passSummary)
+        for tr in summarySoup.findAll('tr', attrs={'class': 'clickableRow'}):
+            if findFlag is False:
+                tds = tr.findAll('td')
+                satTime = tds[2].text.encode('utf-8')
+                satDayTime = passTime.split('-')[0] + passTime.split('-')[1] + passTime.split('-')[2] + satTime
+                time1 = time.mktime(time.strptime(satDayTime, "%Y%m%d%H:%M:%S"))
+                time2 = time.mktime(time.strptime(passTime, "%Y-%m-%d-%H-%M-%S"))
+                detT = abs(int(time1) - int(time2))
+                # print detT
+                day = tds[0].text.encode("utf-8").split(' ')[0]
+                detailsURL = tds[0].find('a').attrs['href']
+                if Day == day and detT < tolerantSecond:
+                    satURL = satURL + detailsURL
+                    findFlag = True
+                    break
+    except Exception:
+        print 'Internet timeout! Please check URL: %s' % satPassSumURL
     return satURL, findFlag
 
 #根据找到的卫星爬取卫星数据，存入satellite实例
@@ -101,7 +104,7 @@ def satDataCollect(id,satURL,isFind,minMagnitude):
                     print 'Magnitude is bigger than %s' % minMagnitude
             else:
                 print 'Satellite %s Magnitude information is - (not clear!)' % getSatellite.id
-        except Exception, e:
+        except Exception:
             print 'Satellite %s internet timeout ! please check this URL below：' % getSatellite.id
             print satURL
     else:
