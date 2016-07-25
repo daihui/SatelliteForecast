@@ -111,7 +111,7 @@ def satDataCollect(id,satURL,isFind,minMagnitude):
                         getSatellite.satName = name
                         isOK = True
                     else:
-                        print 'Magnitude is bigger than %s' % minMagnitude
+                        print 'satellite id %s magnitude is bigger than %s' % (getSatellite.id, minMagnitude)
                 else:
                     print 'Satellite %s Magnitude information is %s (not clear!)' % (
                     getSatellite.id, tds[5].text.encode('utf-8').strip())
@@ -171,15 +171,17 @@ def datReadToList(inputFile):
     dataInput=open(inputFile,'r')
     i=0
     idFlag=0
+    timeFlag = 0.0
     for line in dataInput.readlines():
-        if idFlag==int(line.split(' ')[0]):
+        tempTime = line.split()[1] + line.split()[2][0:5]
+        startTime = time.mktime(time.strptime(tempTime, "%Y%m%d%H%M%S"))
+        if idFlag == int(line.split(' ')[0]) and (startTime - timeFlag) < 60 * 30:
             continue
         else:
             satList[i][0]=line.split()[0]
-            tempTime=line.split()[1]+line.split()[2][0:5]
-            startTime= time.mktime(time.strptime(tempTime,"%Y%m%d%H%M%S"))
             satList[i][1]=startTime
             idFlag=int(line.split()[0])
+            timeFlag = startTime
             #print satList[i]
             i+=1
     dataInput.close()
