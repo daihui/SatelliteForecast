@@ -12,13 +12,14 @@ from bs4 import BeautifulSoup
 baseURL='http://www.heavens-above.com/'
 tolerantSecond=15*60    #卫星升起时间容忍误差
 minMagnitude=5.5        #卫星筛选星等值
-maxSatNum=100           #输入卫星最大颗数
+maxSatNum = 100  # 输入卫星最大颗数
+reqTimeout = 20  # 网页请求timeout时间设定
 latitude = '32.3260'  # 观测地纬度
 longitude = '80.0270'  # 观测地经度
 elevation = '5067'  # 观测地海拔，  观测地默认设置阿里观测站(32.3260N,80.0270E,5067)
-inputFile = 'InputFile/2016-7-22-input.txt'  # 输入卫星数据，包括编号id以及升起时间
+inputFile = 'InputFile/SLR14_22.Dat'  # 输入卫星数据，包括编号id以及升起时间
 outputFile = 'OutputData/SatelliteResult'+time.strftime('%Y-%m-%d',time.localtime(time.time()))+'.txt'  #输出卫星查询数据
-dataForm='txt'  # 输入文件格式
+dataForm='Dat'  # 输入文件格式
 
 
 #定义卫星类，属性包括ID，名字，标准时间，北京时间，方位角，星等
@@ -48,68 +49,84 @@ def satPassDetailsURL(satPassSumURL,passTime,tolerantSecond):
     satURL = baseURL
     detailsURL=''
     Day=passTime.split('-')[2]
-    try:
-        passSummaryRequest = urllib2.Request(satPassSumURL)
-        passSummaryResponse = urllib2.urlopen(passSummaryRequest, timeout=60)
-        passSummary = passSummaryResponse.read()
-        summarySoup = BeautifulSoup(passSummary)
-        for tr in summarySoup.findAll('tr', attrs={'class': 'clickableRow'}):
-            if findFlag is False:
-                tds = tr.findAll('td')
-                satTime = tds[2].text.encode('utf-8')
-                satDayTime = passTime.split('-')[0] + passTime.split('-')[1] + passTime.split('-')[2] + satTime
-                time1 = time.mktime(time.strptime(satDayTime, "%Y%m%d%H:%M:%S"))
-                time2 = time.mktime(time.strptime(passTime, "%Y-%m-%d-%H-%M-%S"))
-                detT = abs(int(time1) - int(time2))
-                # print detT
-                day = tds[0].text.encode("utf-8").split(' ')[0]
-                detailsURL = tds[0].find('a').attrs['href']
-                if Day == day and detT < tolerantSecond:
-                    satURL = satURL + detailsURL
-                    findFlag = True
-                    break
-    except Exception:
-        print 'Internet timeout! Please check URL: %s' % satPassSumURL
+    maxRetryNum = 3
+    for tries in range(1, maxRetryNum + 1):
+        try:
+            passSummaryRequest = urllib2.Request(satPassSumURL)
+            passSummaryResponse = urllib2.urlopen(passSummaryRequest, timeout=reqTimeout)
+            passSummary = passSummaryResponse.read()
+            summarySoup = BeautifulSoup(passSummary)
+            for tr in summarySoup.findAll('tr', attrs={'class': 'clickableRow'}):
+                if findFlag is False:
+                    tds = tr.findAll('td')
+                    satTime = tds[2].text.encode('utf-8')
+                    satDayTime = passTime.split('-')[0] + passTime.split('-')[1] + passTime.split('-')[2] + satTime
+                    time1 = time.mktime(time.strptime(satDayTime, "%Y%m%d%H:%M:%S"))
+                    time2 = time.mktime(time.strptime(passTime, "%Y-%m-%d-%H-%M-%S"))
+                    detT = abs(int(time1) - int(time2))
+                    # print detT
+                    day = tds[0].text.encode("utf-8").split(' ')[0]
+                    detailsURL = tds[0].find('a').attrs['href']
+                    if Day == day and detT < tolerantSecond:
+                        satURL = satURL + detailsURL
+                        findFlag = True
+                        break
+            break
+        except Exception:
+            if tries < maxRetryNum:
+                print 'the %s\'th try to get satellite summary URL failed , try again...' % tries
+            else:
+                print 'Internet timeout! Please check URL: %s' % satPassSumURL
+            continue
     return satURL, findFlag
 
 #根据找到的卫星爬取卫星数据，存入satellite实例
 def satDataCollect(id,satURL,isFind,minMagnitude):
     isOK=False
-    if isFind:
-        try:
-            # print satURL
-            passDetailsRequest = urllib2.Request(satURL)
-            passDetailsResponse = urllib2.urlopen(passDetailsRequest, timeout=60)
-            passDetails = passDetailsResponse.read()
-            detailsSoup = BeautifulSoup(passDetails)
-            head = detailsSoup.find('head')
-            name = head.find('title').text.encode('utf-8').split('-')[0].strip()
-            table = detailsSoup.find('table', attrs={'standardTable'})
-            trs = table.findAll('tr')
-            tr = trs[3]
-            tds = tr.findAll('td')
-            if tds[0].text.encode('utf-8').strip() != 'Maximum altitude':
-                tr = trs[4]
+    maxRetryNum = 3
+    for tries in range(1, maxRetryNum + 1):
+        if isFind:
+            try:
+                # print satURL
+                passDetailsRequest = urllib2.Request(satURL)
+                passDetailsResponse = urllib2.urlopen(passDetailsRequest, timeout=reqTimeout)
+                passDetails = passDetailsResponse.read()
+                detailsSoup = BeautifulSoup(passDetails)
+                head = detailsSoup.find('head')
+                name = head.find('title').text.encode('utf-8').split('-')[0].strip()
+                table = detailsSoup.find('table', attrs={'standardTable'})
+                trs = table.findAll('tr')
+                tr = trs[3]
                 tds = tr.findAll('td')
-            if tds[5].text.encode('utf-8').strip() != '-':
-                print tds[5].text.encode('utf-8').strip()
-                if float(tds[5].text.encode('utf-8').strip()) <= minMagnitude:
-                    getSatellite.altitude = tds[2].text.encode('utf-8').split(' ')[0].strip()
-                    getSatellite.magnitude = float(tds[5].text.encode('utf-8'))
-                    getSatellite.azimuth = tds[3].text.encode('utf-8').split(' ')[0].strip()
-                    getSatellite.distance = tds[4].text.encode('utf-8')
-                    getSatellite.satName = name
-                    isOK = True
+                if tds[0].text.encode('utf-8').strip() != 'Maximum altitude':
+                    tr = trs[4]
+                    tds = tr.findAll('td')
+                if tds[5].text.encode('utf-8').strip() != '-' and tds[5].text.encode('utf-8').strip() != '?':
+                    print tds[5].text.encode('utf-8').strip()
+                    if float(tds[5].text.encode('utf-8').strip()) <= minMagnitude:
+                        getSatellite.altitude = tds[2].text.encode('utf-8').split(' ')[0].strip()
+                        getSatellite.magnitude = float(tds[5].text.encode('utf-8'))
+                        getSatellite.azimuth = tds[3].text.encode('utf-8').split(' ')[0].strip()
+                        getSatellite.distance = tds[4].text.encode('utf-8')
+                        getSatellite.satName = name
+                        isOK = True
+                    else:
+                        print 'Magnitude is bigger than %s' % minMagnitude
                 else:
-                    print 'Magnitude is bigger than %s' % minMagnitude
-            else:
-                print 'Satellite %s Magnitude information is - (not clear!)' % getSatellite.id
-        except Exception:
-            print 'Satellite %s internet timeout ! please check this URL below：' % getSatellite.id
-            print satURL
-    else:
-        print 'Can\'t find the Satellite id %s around time %s !, Please check!' % (
-        getSatellite.id, getSatellite.baseTime)
+                    print 'Satellite %s Magnitude information is %s (not clear!)' % (
+                    getSatellite.id, tds[5].text.encode('utf-8').strip())
+                break
+            except Exception:
+                if tries < maxRetryNum:
+                    print 'the %s\'th try to get satellite details URL failed , try again...' % tries
+                else:
+                    print 'Satellite %s internet timeout ! please check this URL below：' % getSatellite.id
+                    print satURL
+                continue
+        else:
+            print 'Can\'t find the Satellite id %s around time %s !, Please check!' % (
+                getSatellite.id, getSatellite.baseTime)
+            break
     return getSatellite,isOK
 
 #将符合要求的卫星数据写入文件
@@ -172,7 +189,7 @@ def datReadToList(inputFile):
 def satSearch(inputFile,outputFile,dataForm):
     if dataForm=='txt':
         satList=txtReadToList(inputFile)
-    elif dataForm=='dat':
+    elif dataForm == 'dat' or dataForm == 'Dat':
         satList=datReadToList(inputFile)
     else:
         print 'The input data form is not support !!! try .txt or .dat file!'
@@ -183,7 +200,7 @@ def satSearch(inputFile,outputFile,dataForm):
     outFile.close()
     print'Satellite MaxNum:', satNum
     for i in range(satNum):
-        print str(i+1) + '\'th satellite:'
+        print '\n' + str(i + 1) + '\'th satellite:'
         if int(satList[i][0])==0:
             continue
         getSatellite.id=str(int(satList[i][0]))
