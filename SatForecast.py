@@ -8,7 +8,8 @@ import time
 import urllib2
 from bs4 import BeautifulSoup
 
-#基本参数设置
+# 基本参数设置,运行前请修改合适参数！
+# ==========================================================================
 baseURL='http://www.heavens-above.com/'
 tolerantSecond=15*60    #卫星升起时间容忍误差
 minMagnitude=5.5        #卫星筛选星等值
@@ -17,10 +18,12 @@ reqTimeout = 20  # 网页请求timeout时间设定
 latitude = '32.3260'  # 观测地纬度
 longitude = '80.0270'  # 观测地经度
 elevation = '5067'  # 观测地海拔，  观测地默认设置阿里观测站(32.3260N,80.0270E,5067)
-inputFile = 'InputFile/SLR14_22.Dat'  # 输入卫星数据，包括编号id以及升起时间
+inputFile = 'InputFile/2016-7-22-input.txt'  # 输入卫星数据，包括编号id以及升起时间
 outputFile = 'OutputData/SatelliteResult'+time.strftime('%Y-%m-%d',time.localtime(time.time()))+'.txt'  #输出卫星查询数据
-dataForm='Dat'  # 输入文件格式
+dataForm = 'txt'  # 输入文件格式
 
+
+#==========================================================================
 
 #定义卫星类，属性包括ID，名字，标准时间，北京时间，方位角，星等
 class satellite():
@@ -152,9 +155,8 @@ def txtReadToList(inputFile):
     #print Day
     i=0
     for line in dataInput.readlines():
-        satList[i][0]=line.split('\t')[0]
-        tempTime= str(line.split('\t')[1])
-        tempTime=tempTime.split('\n')[0]
+        satList[i][0] = line.split()[0]
+        tempTime = str(line.split()[1])
         dayTime=time.strptime(tempTime,'%H:%M')
         dayTime=time.strftime('-%H-%M-%S',dayTime)
         dayTime=Day+dayTime
