@@ -21,8 +21,6 @@ elevation = '5067'  # 观测地海拔，  观测地默认设置阿里观测站(3
 inputFile = 'InputFile/2016-7-22-input.txt'  # 输入卫星数据，包括编号id以及升起时间
 outputFile = 'OutputData/SatelliteResult'+time.strftime('%Y-%m-%d',time.localtime(time.time()))+'.txt'  #输出卫星查询数据
 dataForm = 'txt'  # 输入文件格式
-
-
 #==========================================================================
 
 #定义卫星类，属性包括ID，名字，标准时间，北京时间，方位角，星等
